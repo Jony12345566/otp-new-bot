@@ -3,6 +3,8 @@ import time
 import re
 import os
 import logging
+from flask import Flask
+import threading
 
 # ==============================
 # Logging Setup
@@ -15,6 +17,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 CHAT_ID   = os.environ.get("CHAT_ID")
 PHPSESSID  = os.environ.get("PHPSESSID")
+PORT = int(os.environ.get("PORT", 10000))  # Render default port
 
 if not BOT_TOKEN or not CHAT_ID or not PHPSESSID:
     logging.error("BOT_TOKEN, CHAT_ID, or PHPSESSID not set in environment variables!")
@@ -142,20 +145,36 @@ def fetch_otps():
     return otps
 
 # ==============================
-# Main Loop
+# Main OTP Loop
 # ==============================
-last_seen = set()
+def otp_loop():
+    last_seen = set()
+    logging.info("OTP bot started")
 
-logging.info("OTP bot started")
+    while True:
+        try:
+            otps = fetch_otps()
+            for otp in otps:
+                if otp not in last_seen:
+                    send_to_telegram(otp)
+                    last_seen.add(otp)
+        except Exception as e:
+            logging.error(f"Main loop error: {e}")
 
-while True:
-    try:
-        otps = fetch_otps()
-        for otp in otps:
-            if otp not in last_seen:
-                send_to_telegram(otp)
-                last_seen.add(otp)
-    except Exception as e:
-        logging.error(f"Main loop error: {e}")
+        time.sleep(15)
 
-    time.sleep(15)
+# ==============================
+# Flask App for Render Ping
+# ==============================
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "OTP Bot is alive!"
+
+# ==============================
+# Run Flask & Bot Threaded
+# ==============================
+if __name__ == "__main__":
+    threading.Thread(target=otp_loop).start()
+    app.run(host="0.0.0.0", port=PORT)
