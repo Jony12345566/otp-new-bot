@@ -1,2 +1,9 @@
 requests
 python-dotenv
+time
+re
+os
+logging
+threading
+Flask
+flask
