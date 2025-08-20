@@ -112,7 +112,7 @@ def fetch_otps():
             time_str = row[0]
             number   = str(row[2])
             service  = row[3]
-            full_msg = str(row[5])
+            full_msg = str(row[4])
 
             if full_msg.strip() == "0":
                 continue
