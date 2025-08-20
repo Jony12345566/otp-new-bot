@@ -162,7 +162,7 @@ def otp_loop():
         except Exception as e:
             logging.error(f"Main loop error: {e}")
 
-        time.sleep(15)
+        time.sleep(5)
 
 # ==============================
 # Flask App for Render Ping
