@@ -141,7 +141,7 @@ def send_to_telegram(message):
 # ==============================
 def fetch_otps():
     try:
-        r = requests.get(url, params=get_params(), cookies=cookies, headers=headers, timeout=10)
+        r = requests.get(url, params=params, cookies=cookies, headers=headers, timeout=10)
         data = r.json()
     except Exception as e:
         logging.error(f"Error fetching data: {e}")
