@@ -5,6 +5,7 @@ import os
 import logging
 from flask import Flask
 import threading
+from datetime import datetime, date
 
 # ==============================
 # Logging Setup
@@ -36,74 +37,59 @@ headers = {
     'Accept': 'application/json, text/javascript, */*; q=0.01',
     'X-Requested-With': 'XMLHttpRequest',
     'Referer': 'http://94.23.120.156/ints/client/SMSCDRStats',
-    # 'Accept-Encoding': 'gzip, deflate',
     'Accept-Language': 'en-US,en;q=0.9,bn;q=0.8',
-    # 'Cookie': 'PHPSESSID=gfr4p8c5bfdbesjmp59iakf7mt',
 }
 
-
-
-params = {
-    'fdate1': '2025-08-22 00:00:00',
-    'fdate2': '2025-08-22 23:59:59',
-    'frange': '',
-    'fnum': '',
-    'fcli': '',
-    'fgdate': '',
-    'fgmonth': '',
-    'fgrange': '',
-    'fgnumber': '',
-    'fgcli': '',
-    'fg': '0',
-    'sEcho': '1',
-    'iColumns': '7',
-    'sColumns': ',,,,,,',
-    'iDisplayStart': '0',
-    'iDisplayLength': '25',
-    'mDataProp_0': '0',
-    'sSearch_0': '',
-    'bRegex_0': 'false',
-    'bSearchable_0': 'true',
-    'bSortable_0': 'true',
-    'mDataProp_1': '1',
-    'sSearch_1': '',
-    'bRegex_1': 'false',
-    'bSearchable_1': 'true',
-    'bSortable_1': 'true',
-    'mDataProp_2': '2',
-    'sSearch_2': '',
-    'bRegex_2': 'false',
-    'bSearchable_2': 'true',
-    'bSortable_2': 'true',
-    'mDataProp_3': '3',
-    'sSearch_3': '',
-    'bRegex_3': 'false',
-    'bSearchable_3': 'true',
-    'bSortable_3': 'true',
-    'mDataProp_4': '4',
-    'sSearch_4': '',
-    'bRegex_4': 'false',
-    'bSearchable_4': 'true',
-    'bSortable_4': 'true',
-    'mDataProp_5': '5',
-    'sSearch_5': '',
-    'bRegex_5': 'false',
-    'bSearchable_5': 'true',
-    'bSortable_5': 'true',
-    'mDataProp_6': '6',
-    'sSearch_6': '',
-    'bRegex_6': 'false',
-    'bSearchable_6': 'true',
-    'bSortable_6': 'true',
-    'sSearch': '',
-    'bRegex': 'false',
-    'iSortCol_0': '0',
-    'sSortDir_0': 'desc',
-    'iSortingCols': '1',
-    '_': '1755842581989',
-}
-
-
+# ==============================
+# Dynamic Params (today's date)
+# ==============================
+def get_params():
+    today = date.today().strftime("%Y-%m-%d")
+    return {
+        'fdate1': f'{today} 00:00:00',
+        'fdate2': f'{today} 23:59:59',
+        'frange': '',
+        'fnum': '',
+        'fcli': '',
+        'fgdate': '',
+        'fgmonth': '',
+        'fgrange': '',
+        'fgnumber': '',
+        'fgcli': '',
+        'fg': '0',
+        'sEcho': '1',
+        'iColumns': '7',
+        'sColumns': ',,,,,,',
+        'iDisplayStart': '0',
+        'iDisplayLength': '25',
+        'mDataProp_0': '0',
+        'bSearchable_0': 'true',
+        'bSortable_0': 'true',
+        'mDataProp_1': '1',
+        'bSearchable_1': 'true',
+        'bSortable_1': 'true',
+        'mDataProp_2': '2',
+        'bSearchable_2': 'true',
+        'bSortable_2': 'true',
+        'mDataProp_3': '3',
+        'bSearchable_3': 'true',
+        'bSortable_3': 'true',
+        'mDataProp_4': '4',
+        'bSearchable_4': 'true',
+        'bSortable_4': 'true',
+        'mDataProp_5': '5',
+        'bSearchable_5': 'true',
+        'bSortable_5': 'true',
+        'mDataProp_6': '6',
+        'bSearchable_6': 'true',
+        'bSortable_6': 'true',
+        'sSearch': '',
+        'bRegex': 'false',
+        'iSortCol_0': '0',
+        'sSortDir_0': 'desc',
+        'iSortingCols': '1',
+        '_': str(int(time.time() * 1000)),
+    }
 
 # ==============================
 # Country Code Map
@@ -130,7 +116,7 @@ COUNTRY_CODES = {
 }
 
 def detect_country(number):
-    for code, country in sorted(COUNTRY_CODES.items(), key=lambda x: -len(x[0])):  
+    for code, country in sorted(COUNTRY_CODES.items(), key=lambda x: -len(x[0])):
         if str(number).startswith(code):
             return country
     return "Unknown 🌍"
@@ -144,15 +130,6 @@ def send_to_telegram(message):
         "chat_id": CHAT_ID,
         "text": message,
         "parse_mode": "HTML",
-        "reply_markup": {
-            "inline_keyboard": [
-                [
-                    {"text": "Main Channel", "url": "https://t.me/your_channel_1"}
-                    
-                    
-                ]
-            ]
-        }
     }
     try:
         requests.post(url_api, json=payload, timeout=10)
@@ -165,8 +142,7 @@ def send_to_telegram(message):
 # ==============================
 def fetch_otps():
     try:
-        r = requests.get(url, cookies=cookies, headers=headers, timeout=15)
-        r = requests.get(url, params=params, cookies=cookies, headers=headers, timeout=5)
+        r = requests.get(url, params=get_params(), cookies=cookies, headers=headers, timeout=10)
         data = r.json()
     except Exception as e:
         logging.error(f"Error fetching data: {e}")
@@ -216,10 +192,18 @@ def fetch_otps():
 # ==============================
 def otp_loop():
     last_seen = set()
+    current_day = date.today()
+
     logging.info("OTP bot started")
 
     while True:
         try:
+            # প্রতিদিন নতুন দিনে reset হবে
+            if date.today() != current_day:
+                last_seen.clear()
+                current_day = date.today()
+                logging.info("New day detected, last_seen reset ✅")
+
             otps = fetch_otps()
             for otp in otps:
                 if otp not in last_seen:
