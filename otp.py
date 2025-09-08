@@ -33,13 +33,13 @@ cookies = {'PHPSESSID': PHPSESSID}
 headers = {
     'Host': '94.23.120.156',
     'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
     'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Mobile Safari/537.36',
-    'Accept': 'application/json, text/javascript, */*; q=0.01',
-    'X-Requested-With': 'XMLHttpRequest',
-    'Referer': 'http://94.23.120.156/ints/client/SMSCDRStats',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    'Referer': 'http://94.23.120.156/ints/client/SMSDashboard',
     # 'Accept-Encoding': 'gzip, deflate',
     'Accept-Language': 'en-US,en;q=0.9,bn;q=0.8',
-    # 'Cookie': 'PHPSESSID=deuv283kk2bco2n84sp404ittl',
+    # 'Cookie': 'PHPSESSID=hu4kqabdf7kb11ugi7kjgmujn8',
 }
 
 
