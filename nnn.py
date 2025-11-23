@@ -71,6 +71,7 @@ COUNTRY_CODES = {
     "973": "Bahrain 🇧🇭",
     "974": "Qatar 🇶🇦",
     "966": "Saudi Arabia 🇸🇦",
+    "249": "Sudan"
 }
 
 def detect_country(number):
@@ -116,7 +117,7 @@ def fetch_otps():
             time_str = row[0]
             number   = str(row[2])
             service  = row[3]
-            full_msg = str(row[4])
+            full_msg = str(row[5])
 
             if full_msg.strip() == "0":
                 continue
@@ -190,3 +191,4 @@ def home():
 if __name__ == "__main__":
     threading.Thread(target=otp_loop).start()
     app.run(host="0.0.0.0", port=PORT)
+
