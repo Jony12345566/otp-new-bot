@@ -157,21 +157,26 @@ def otp_loop():
 
     while True:
         try:
+            # New day reset
             if date.today() != current_day:
                 last_seen.clear()
                 current_day = date.today()
                 logging.info("New day detected, last_seen reset ✅")
 
             otps = fetch_otps()
-            for otp in otps:
-                if otp not in last_seen:
-                    send_to_telegram(otp)
-                    last_seen.add(otp)
+            for otp_data in otps:
+
+                # --- 🔥 UNIQUE KEY FIX ---
+                raw = otp_data.replace("\n", "")
+                key = raw[:80]   # otp_data-এর ইউনিক অংশ যুক্ত করা
+
+                if key not in last_seen:
+                    send_to_telegram(otp_data)
+                    last_seen.add(key)
         except Exception as e:
             logging.error(f"Main loop error: {e}")
 
         time.sleep(5)
-
 # ==============================
 # Flask App for Render Ping
 # ==============================
@@ -187,5 +192,6 @@ def home():
 if __name__ == "__main__":
     threading.Thread(target=otp_loop).start()
     app.run(host="0.0.0.0", port=PORT)
+
 
 
