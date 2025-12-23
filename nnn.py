@@ -9,7 +9,7 @@ from telebot import types
 # --- [ CONFIGURATION ] ---
 API_TOKEN = '8177948502:AAFwuwk-wO9kkklZKDXxfUSvSh9EeYbeYLw' 
 ADMIN_ID = 7128914520
-OTP_GROUP_ID = -1002484729104 
+OTP_GROUP_ID = -1002484729104 # <--- Apnar Group ID boshan
 GROUP_LINK = "https://t.me/otprcvrakib"
 
 bot = telebot.TeleBot(API_TOKEN, threaded=True)
@@ -31,46 +31,50 @@ pending_admin_files = {}
 is_broadcasting = {} 
 rename_state = {} 
 
-# --- [ OTP FORWARDING LOGIC ] ---
+# --- [ OTP FORWARDING LOGIC (ADVANCED ALL-MATCH) ] ---
 @bot.message_handler(func=lambda message: message.chat.id == OTP_GROUP_ID)
 def handle_otp_from_group(message):
     if not message.text: return
+    
     otp_text = message.text
-    phone_match = re.search(r'(\d{10,15})', otp_text)
-    if phone_match:
-        incoming_num = phone_match.group(1).strip()
-        conn = sqlite3.connect('numbers.db'); cursor = conn.cursor()
-        cursor.execute("SELECT user_id FROM active_sessions WHERE number LIKE ?", (f'%{incoming_num}',))
-        result = cursor.fetchone(); conn.close()
-        if result:
-            user_id = result[0]
-            try: bot.send_message(user_id, f"🔔 **New OTP Received!**\n\n`{otp_text}`", parse_mode="Markdown")
-            except: pass
+    # Message theke 3 ba tar beshi digit-er shob segment khuje ber kora
+    found_segments = re.findall(r'\d{3,}', otp_text)
+    
+    if not found_segments: return
 
-# --- [ DELETE COUNTRY COMMAND (NEW) ] ---
-@bot.message_handler(commands=['delete'])
-def delete_country(message):
-    if message.from_user.id == ADMIN_ID:
+    conn = sqlite3.connect('numbers.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, number FROM active_sessions")
+    all_sessions = cursor.fetchall()
+    conn.close()
+
+    best_match_user = None
+    highest_match_score = 0
+
+    for user_id, db_num in all_sessions:
+        clean_db_num = re.sub(r'\D', '', db_num) # DB number theke + ba space bad deya
+        current_match_score = 0
+        
+        for segment in found_segments:
+            if segment in clean_db_num:
+                current_match_score += len(segment) # Matching segments-er length score hishebe jog hobe
+        
+        if current_match_score > highest_match_score:
+            highest_match_score = current_match_score
+            best_match_user = user_id
+
+    # Minimum 3 digit match korle forward korbe
+    if best_match_user and highest_match_score >= 3:
         try:
-            parts = message.text.split()
-            if len(parts) == 2:
-                country_to_delete = parts[1].upper()
-                conn = sqlite3.connect('numbers.db')
-                cursor = conn.cursor()
-                cursor.execute("DELETE FROM inventory WHERE country = ?", (country_to_delete,))
-                conn.commit()
-                count = cursor.rowcount
-                conn.close()
-                if count > 0:
-                    bot.reply_to(message, f"🗑️ **{country_to_delete}** এর সব নাম্বার ({count} টি) রিমুভ করা হয়েছে।")
-                else:
-                    bot.reply_to(message, f"❌ এই নামে ( {country_to_delete} ) কোনো দেশ খুঁজে পাওয়া যায়নি।")
-            else:
-                bot.reply_to(message, "⚠️ সঠিক ফরম্যাট: `/delete USA`")
-        except Exception as e:
-            bot.reply_to(message, f"❌ Error: {e}")
+            bot.send_message(best_match_user, f"🔔 **New OTP Received!**\n\n`{otp_text}`", parse_mode="Markdown")
+        except: pass
 
-# --- [ START COMMAND ] ---
+# --- [ KEYBOARDS ] ---
+def main_menu():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.row(types.KeyboardButton("📱 Get Number"), types.KeyboardButton("🌍 Available Country"))
+    return markup
+
 @bot.message_handler(commands=['start'])
 def start(message):
     try:
@@ -80,29 +84,44 @@ def start(message):
         bot.send_message(message.chat.id, "✨ Welcome to Seven1tel Number Panel!", reply_markup=main_menu())
     except: pass
 
-def main_menu():
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row(types.KeyboardButton("📱 Get Number"), types.KeyboardButton("🌍 Available Country"))
-    return markup
+# --- [ ADMIN COMMAND: DELETE COUNTRY ] ---
+@bot.message_handler(commands=['delete'])
+def delete_country(message):
+    if message.from_user.id == ADMIN_ID:
+        try:
+            parts = message.text.split()
+            if len(parts) == 2:
+                country_to_delete = parts[1].upper()
+                conn = sqlite3.connect('numbers.db'); cursor = conn.cursor()
+                cursor.execute("DELETE FROM inventory WHERE country = ?", (country_to_delete,))
+                conn.commit(); count = cursor.rowcount; conn.close()
+                if count > 0:
+                    bot.reply_to(message, f"🗑️ **{country_to_delete}** er shob number ({count} ti) remove kora hoyeche.")
+                else:
+                    bot.reply_to(message, f"❌ '{country_to_delete}' naame kono desh khuje pawa jayni.")
+            else:
+                bot.reply_to(message, "⚠️ Format: `/delete USA`")
+        except Exception as e:
+            bot.reply_to(message, f"❌ Error: {e}")
 
-# --- [ RENAME SYSTEM ] ---
+# --- [ ADMIN COMMAND: RENAME COUNTRY ] ---
 @bot.message_handler(commands=['rename'])
 def rename_start(message):
     if message.from_user.id == ADMIN_ID:
         conn = sqlite3.connect('numbers.db'); cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT country FROM inventory")
-        countries = cursor.fetchall(); conn.close()
-        if not countries: bot.reply_to(message, "❌ ডাটাবেজ খালি!"); return
+        cursor.execute("SELECT DISTINCT country FROM inventory"); countries = cursor.fetchall(); conn.close()
+        if not countries: bot.reply_to(message, "❌ Database khali!"); return
         markup = types.InlineKeyboardMarkup()
-        for c in countries: markup.add(types.InlineKeyboardButton(f"✏️ {c[0]}", callback_data=f"rn_{c[0]}"))
-        bot.send_message(message.chat.id, "📍 দেশের নাম পরিবর্তন করতে সিলেক্ট করুন:", reply_markup=markup)
+        for c in countries:
+            markup.add(types.InlineKeyboardButton(f"✏️ {c[0]}", callback_data=f"rn_{c[0]}"))
+        bot.send_message(message.chat.id, "📍 Select Country to rename:", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("rn_"))
 def ask_new_name(call):
     if call.from_user.id == ADMIN_ID:
         old_name = call.data.replace("rn_", "")
         rename_state[ADMIN_ID] = old_name
-        bot.edit_message_text(f"Selected: **{old_name}**\n📝 নতুন নাম লিখে পাঠান:", call.message.chat.id, call.message.message_id)
+        bot.edit_message_text(f"Selected: **{old_name}**\n📝 Notun naam likhe pathan:", call.message.chat.id, call.message.message_id)
 
 @bot.message_handler(func=lambda message: message.from_user.id == ADMIN_ID and ADMIN_ID in rename_state)
 def process_rename(message):
@@ -110,16 +129,36 @@ def process_rename(message):
     conn = sqlite3.connect('numbers.db'); cursor = conn.cursor()
     cursor.execute("UPDATE inventory SET country = ? WHERE country = ?", (new_name, old_name))
     conn.commit(); conn.close()
-    bot.reply_to(message, f"✅ আপডেট হয়েছে: {old_name} ➜ {new_name}")
+    bot.reply_to(message, f"✅ Updated: {old_name} ➜ {new_name}")
 
-# --- [ SEND SMS ] ---
+# --- [ BROADCAST SMS ] ---
 @bot.message_handler(commands=['sendsms'])
 def sendsms_command(message):
     if message.from_user.id == ADMIN_ID:
         is_broadcasting[ADMIN_ID] = True
-        bot.reply_to(message, "📢 মেসেজ পাঠান (বাতিল করতে `/cancel`)।")
+        bot.reply_to(message, "📢 Message pathan (cancel korte `/cancel` likhun)।")
 
-# --- [ FILE HANDLING & OTHERS ] ---
+@bot.message_handler(func=lambda message: is_broadcasting.get(ADMIN_ID) and message.text == "/cancel")
+def cancel_send(message):
+    is_broadcasting[ADMIN_ID] = False
+    bot.reply_to(message, "❌ Broadcast cancelled.")
+
+@bot.message_handler(func=lambda message: is_broadcasting.get(ADMIN_ID), content_types=['text', 'photo', 'video', 'animation', 'document'])
+def start_sending(message):
+    if message.from_user.id == ADMIN_ID:
+        is_broadcasting[ADMIN_ID] = False
+        bot.reply_to(message, "⏳ Sending to all users...")
+        conn = sqlite3.connect('numbers.db'); cursor = conn.cursor()
+        cursor.execute("SELECT user_id FROM users"); all_users = cursor.fetchall(); conn.close()
+        success = 0; failed = 0
+        for user in all_users:
+            try:
+                bot.copy_message(user[0], message.chat.id, message.message_id)
+                success += 1; time.sleep(0.05) 
+            except: failed += 1
+        bot.send_message(ADMIN_ID, f"📢 **Broadcast Result:**\n✅ Success: {success}\n❌ Failed: {failed}")
+
+# --- [ ADMIN: ADD FILE ] ---
 @bot.message_handler(content_types=['document'])
 def handle_txt_file(message):
     if message.from_user.id == ADMIN_ID and not message.caption:
@@ -128,7 +167,7 @@ def handle_txt_file(message):
         path = f"temp_{message.from_user.id}.txt"
         with open(path, 'wb') as f: f.write(downloaded)
         pending_admin_files[message.from_user.id] = path
-        bot.reply_to(message, "📩 দেশের নাম লিখুন:")
+        bot.reply_to(message, "📩 Desher naam likhun:")
 
 @bot.message_handler(func=lambda message: message.from_user.id in pending_admin_files)
 def capture_country_name(message):
@@ -138,24 +177,34 @@ def capture_country_name(message):
         for line in f:
             if line.strip(): cursor.execute("INSERT INTO inventory (country, number) VALUES (?, ?)", (country, line.strip())); added += 1
     conn.commit(); conn.close(); os.remove(path)
-    bot.send_message(message.chat.id, f"✅ {added} টি নাম্বার {country} এ যুক্ত হয়েছে।")
+    bot.send_message(message.chat.id, f"✅ {added} numbers added to {country}.")
 
+# --- [ USER INTERFACE & BUTTONS ] ---
 @bot.message_handler(func=lambda message: True)
 def handle_text(message):
     if message.text in ["📱 Get Number", "🌍 Available Country"]:
-        show_countries(message.chat.id)
+        show_countries(message)
 
-def show_countries(chat_id):
+def show_countries(message_or_call):
+    chat_id = message_or_call.chat.id if hasattr(message_or_call, 'chat') else message_or_call.message.chat.id
     conn = sqlite3.connect('numbers.db'); cursor = conn.cursor()
     cursor.execute("SELECT DISTINCT country FROM inventory"); countries = cursor.fetchall(); conn.close()
-    if not countries: bot.send_message(chat_id, "❌ স্টক খালি!"); return
+    if not countries:
+        bot.send_message(chat_id, "❌ Stock is empty!"); return
     markup = types.InlineKeyboardMarkup()
     for c in countries: markup.add(types.InlineKeyboardButton(f"🌍 {c[0]}", callback_data=f"getnum_{c[0]}"))
-    bot.send_message(chat_id, "📍 দেশ সিলেক্ট করুন:", reply_markup=markup)
+    
+    if hasattr(message_or_call, 'message'):
+        bot.edit_message_text("📍 Select Country:", chat_id, message_or_call.message.message_id, reply_markup=markup)
+    else:
+        bot.send_message(chat_id, "📍 Select Country:", reply_markup=markup)
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith("getnum_") or call.data == "get_country")
+@bot.callback_query_handler(func=lambda call: True)
 def handle_query(call):
-    if call.data.startswith("getnum_"):
+    bot.answer_callback_query(call.id)
+    if call.data == "get_country":
+        show_countries(call)
+    elif call.data.startswith("getnum_"):
         country = call.data.split("_")[1]
         conn = sqlite3.connect('numbers.db'); cursor = conn.cursor()
         cursor.execute("SELECT id, number FROM inventory WHERE country = ? LIMIT 1", (country,))
@@ -164,16 +213,20 @@ def handle_query(call):
             db_id, raw_num = row; num = str(raw_num).strip()
             if not num.startswith('+'): num = "+" + num
             cursor.execute("DELETE FROM inventory WHERE id = ?", (db_id,))
+            # OTP Forwarding-er jonno session update
             cursor.execute("INSERT OR REPLACE INTO active_sessions (user_id, number) VALUES (?, ?)", (call.from_user.id, num))
             conn.commit()
             markup = types.InlineKeyboardMarkup(row_width=1)
             markup.add(types.InlineKeyboardButton("🔄 Get Another", callback_data=f"getnum_{country}"), types.InlineKeyboardButton("🌍 Change Country", callback_data="get_country"), types.InlineKeyboardButton("🔔 OTP Group", url=GROUP_LINK))
-            bot.edit_message_text(f"✅ **{country} Number:**\n`{num}`\n\n⌛ OTP এর জন্য অপেক্ষা করুন...", call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
-        else: bot.send_message(call.message.chat.id, "❌ স্টক শেষ!")
+            bot.edit_message_text(f"✅ **{country} Number Assigned:**\n`{num}`\n\n⌛ OTP ashle ekhane auto forward hobe...", call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
+        else: bot.send_message(call.message.chat.id, f"❌ {country} stock empty!")
         conn.close()
+    elif call.data.startswith("rn_"):
+        ask_new_name(call)
 
+# --- [ POLLING ] ---
 if __name__ == "__main__":
-    print("🚀 Seven1tel Bot is Online.")
+    print("🚀 Seven1tel Final Bot Online!")
     while True:
         try: bot.polling(non_stop=True, interval=0, timeout=120)
         except: time.sleep(5)
